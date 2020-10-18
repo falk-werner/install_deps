@@ -1,4 +1,7 @@
 #!/bin/bash
+# @name install_deps
+# @brief Install C/C++ dependencies from source.
+
 #########################################################################
 # This is free and unencumbered software released into the public domain.
 #
@@ -26,7 +29,8 @@
 # For more information, please refer to <https://unlicense.org>
 #########################################################################
 
-
+# @brief Print usage and command line options.
+# @noargs
 print_usage() {
     cat << EOF
 install_deps.sh, (C) 2020 Falk Werner <https:://github/falk-werner/install_deps>
@@ -45,14 +49,20 @@ EOF
 
 }
 
+# @brief Prints an error message an terminate with exit code 1.
+# @description Perfoms some cleanup actions before termination.
+# @arg $1 error message to print
 die() {
     local MESSAGE="$1"
     echo "error: ${MESSAGE}" 1>&2
 
+    # Print usage in INIT mode, since a user error is likely.
     if [ "INIT" == "$APP_MODE" ]; then
         print_usage
     fi
 
+    # Preserve working dir in DEBUG_MODE toallow further 
+    # investigation.
     if [ "" != "${WORKING_DIR}" ]; then
         if [ "" == "${DEBUG_MODE}" ]; then
             rm -rf "${WORKING_DIR}"
@@ -64,6 +74,10 @@ die() {
     exit 1
 }
 
+# @brief Checks if requred tools are available.
+# @description Note that the script dies, if at least on tool
+# is missing.
+# @noargs
 check_required_tools() {
     for tool in $REQUIRED_TOOLS ; do
         which "${tool}" &> /dev/null
@@ -73,6 +87,13 @@ check_required_tools() {
     done
 }
 
+# @brief Checks if a property loaded from deps file is present.
+# @description Note that the script dies, if the requested
+# poperty is missing.
+# @arg $1 name of package
+# @arg $2 name of the property
+# @example
+#   check_deps_file_property gtest VERSION
 check_deps_file_property() {
     local PACKAGE="$1"
     local PROPERTY="${PACKAGE}_$2"
@@ -81,6 +102,11 @@ check_deps_file_property() {
         fi
 }
 
+# @brief Checks if the information from deps file is valid.
+# @description Note that the script dies, if at least on check
+# fails. Also note that the deps file is not checked itself,
+# but the variables available after sourcing it.
+# @noargs
 check_deps_file() {
     for package in ${PACKAGES}; do
         check_deps_file_property "${package}" VERSION
@@ -91,6 +117,11 @@ check_deps_file() {
     done
 }
 
+# @brief Installs a cmake package.
+# @args $1 name of the package
+# @args $2 source directory of the package contents
+# @example
+#   install_cmake_package gtest /path/to/gtest/sources
 install_cmake_package() {
     local PACKAGE="$1"
     local VERSION="${PACKAGE}_VERSION"
@@ -127,6 +158,11 @@ install_cmake_package() {
     cd "${CURRENT_DIR}"
 }
 
+# @brief Installs a meson package.
+# @args $1 name of the package
+# @args $2 source directory of the package contents
+# @example
+#   install_meson_package fuse3 /path/to/fuse3/sources
 install_meson_package() {
     local PACKAGE="$1"
     local SOURCE_DIR=$(realpath "$2")
@@ -161,6 +197,10 @@ install_meson_package() {
     cd "${CURRENT_DIR}"
 }
 
+# @brief Fetch, extract and install a package.
+# @args $1 name of the package
+# @example
+#   install_package gtest
 install_package() {
     local PACKAGE="$1"
     local PACKAGE_VERSION="${PACKAGE}_VERSION"
@@ -216,7 +256,9 @@ install_package() {
     esac
 }
 
-# entry piont
+#########################################################################
+# Entry Piont
+#########################################################################
 
 APP_MODE="INIT"
 REQUIRED_TOOLS="pkg-config wget md5sum realpath"
@@ -266,11 +308,19 @@ fi
 . "${DEPS_FILE}"
 check_deps_file
 
+# When DESTDIR is given, change it to its realpath, since working directory
+# is changed later. This allows to specify relative DESTDIRs.
+# Also add DESTDIR path to PKG_CONFIG_PATH to allow pkg-config to find
+# dependencies.
+#
+# ToDo: Find some better solution for PKG_CONFIG_PATH since meson installs
+# .pc files to a differnt path on x64 systems.
 if [ "" != "${DESTDIR}" ]; then
     export DESTDIR=$(realpath "${DESTDIR}")
     export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:${DESTDIR}/usr/local/lib/pkgconfig
 fi
 
+# APP_MODE is now running to prevent printing script usage on error (@see die)
 APP_MODE="RUNNING"
 
 CURRENT_DIR=$(pwd)
